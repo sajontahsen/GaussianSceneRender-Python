@@ -1,6 +1,4 @@
 > A simplified Python implementation of **3D Gaussian Splatting (3DGS)** scene rendering. This initializes the Gaussians from COLMAP input and renders a scene based on the original 3DGS implementation. The idea is to learn the core concepts of Gaussian Splatting by building up a barebones version from scratch. Lots more to be added!
----
-
 
 ### **Installation**
 
