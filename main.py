@@ -1,5 +1,5 @@
 import argparse
-from render import render_image
+from render import render_and_save_image
 
 def main():
     parser = argparse.ArgumentParser()
@@ -7,7 +7,7 @@ def main():
     parser.add_argument("--image_id", type=int, required=True, help="ID of the image to render.")
     args = parser.parse_args()
 
-    render_image(colmap_path=args.colmap_path, image_idx=args.image_id)
+    render_and_save_image(colmap_path=args.colmap_path, image_idx=args.image_id)
 
 if __name__ == "__main__":
     main()

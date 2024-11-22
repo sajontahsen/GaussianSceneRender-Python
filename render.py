@@ -51,7 +51,7 @@ def initialize_scene(colmap_path):
     # Initialize Scene
     return GaussianScene(colmap_path=colmap_path, gaussians=gaussians)
 
-def render_image(colmap_path: str, image_idx: int, output_path: str = "./output"):
+def render_and_save_image(colmap_path: str, image_idx: int, output_path: str = "./output"):
     """
     Renders the image using Gaussian Splatting and saves the output.
 
