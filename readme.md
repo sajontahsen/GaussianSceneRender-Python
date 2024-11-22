@@ -31,6 +31,8 @@ python main.py --colmap_path "treehill/sparse/0" --image_id 100
 
 This will render the specified image and save the output to `./output/rendered_image_<image_id>.png`
 
+There is a [demo notebook](./demo-notebook.ipynb) with example outputs. I've kept it because the current implementation is VERY slow. Furthermore, to avoid the costly nearest neighbor search, for now all scale variables are initialized to a small constant.
+
 ---
 
 ### **References**
