@@ -4,7 +4,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your_username/GaussianSceneRender-Python.git
+   git clone https://github.com/sajontahsen/GaussianSceneRender-Python.git
    cd GaussianSceneRender-Python
    ```
 
