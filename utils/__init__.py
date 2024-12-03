@@ -19,3 +19,5 @@ from .scene_utils import (
     compute_extent_and_radius,
     compute_gaussian_weight
 )
+
+from .cuda_utils import load_cuda

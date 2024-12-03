@@ -1,3 +1,5 @@
+import time
+from pathlib import Path
 from tqdm import tqdm
 
 import torch
@@ -16,7 +18,8 @@ from utils import (
     compute_2d_covariance,
     compute_inverted_covariance,
     compute_extent_and_radius,
-    compute_gaussian_weight
+    compute_gaussian_weight,
+    load_cuda,
 )
 
 class GaussianScene(nn.Module):
@@ -237,4 +240,50 @@ class GaussianScene(nn.Module):
                     )
                 )
         return image
+    
+    def compile_cuda_ext(self):
+        
+        cpp_src = """
+        torch::Tensor render_image(
+            int image_height,
+            int image_width, 
+            int tile_size,
+            torch::Tensor point_means,
+            torch::Tensor point_colors,
+            torch::Tensor inverse_covariance_2d,
+            torch::Tensor min_x,
+            torch::Tensor max_x,
+            torch::Tensor min_y,
+            torch::Tensor max_y,
+            torch::Tensor opacity);
+        """
 
+        cuda_src = Path("cuda/render.cu").read_text()
+
+        return load_cuda(cuda_src, cpp_src, ["render_image"], opt=True, verbose=True)
+    
+    def render_image_cuda(self, image_idx: int, tile_size: int = 16) -> torch.Tensor:
+        preprocessed_scene = self.preprocess(image_idx)
+        height = self.images[image_idx].height
+        width = self.images[image_idx].width
+        ext = self.compile_cuda_ext()
+
+        now = time.time()
+        image = ext.render_image(
+            height,
+            width,
+            tile_size,
+            preprocessed_scene.points.contiguous(),
+            preprocessed_scene.colors.contiguous(),
+            preprocessed_scene.inverse_covariance_2d.contiguous(),
+            preprocessed_scene.min_x.contiguous(),
+            preprocessed_scene.max_x.contiguous(),
+            preprocessed_scene.min_y.contiguous(),
+            preprocessed_scene.max_y.contiguous(),
+            preprocessed_scene.sigmoid_opacity.contiguous(),
+        )
+
+        torch.cuda.synchronize()
+        print('CUDA render time (approx.):', time.time() - now, 'seconds')
+        return image
+            
