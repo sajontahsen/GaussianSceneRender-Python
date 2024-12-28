@@ -4,6 +4,8 @@
 - Vulkan Compute Pipeline Implementation (WIP) 
 - 3 Dec, 2024: Added CUDA Implementation 
 
+---
+
 ### **Installation**
 
 1. Clone the repository:
