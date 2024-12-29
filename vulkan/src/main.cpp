@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <cstddef> 
 
 struct Gaussian {
     float x, y;                 // Point position
@@ -64,32 +65,27 @@ std::vector<Gaussian> loadGaussianCSV(const std::string& filename) {
     return gaussians;
 }
 
+void checkCPUMemoryAlignment() {
+    std::cout << "Offsets in C++ Gaussian struct:\n";
+    std::cout << "x: " << offsetof(Gaussian, x) << "\n";
+    std::cout << "y: " << offsetof(Gaussian, y) << "\n";
+    std::cout << "r: " << offsetof(Gaussian, r) << "\n";
+    std::cout << "g: " << offsetof(Gaussian, g) << "\n";
+    std::cout << "b: " << offsetof(Gaussian, b) << "\n";
+    std::cout << "ic11: " << offsetof(Gaussian, ic11) << "\n";
+    std::cout << "opacity: " << offsetof(Gaussian, opacity) << "\n";
+    std::cout << "min_x: " << offsetof(Gaussian, min_x) << "\n";
+
+    std::cout << "Total size of struct: " << sizeof(Gaussian) << " bytes\n";
+}
+
 int main() {
     try {
+        checkCPUMemoryAlignment();
+
         VulkanSetup vulkan;
 
         // Data setup
-        // std::vector<float> inputData = {1.0f, 2.0f, 3.0f, 4.0f};
-        // std::vector<float> outputData(inputData.size(), 0.0f);
-        // VkDeviceSize bufferSize = sizeof(float) * inputData.size();
-
-        // // Create buffers
-        // VkBuffer inputBuffer, outputBuffer;
-        // VkDeviceMemory inputBufferMemory, outputBufferMemory;
-
-        // vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-        //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-        //                     inputBuffer, inputBufferMemory);
-        // vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-        //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-        //                     outputBuffer, outputBufferMemory);
-
-        // // Copy data to input buffer
-        // void* data;
-        // vkMapMemory(vulkan.device, inputBufferMemory, 0, bufferSize, 0, &data);
-        // memcpy(data, inputData.data(), bufferSize);
-        // vkUnmapMemory(vulkan.device, inputBufferMemory);
-
         std::vector<Gaussian> gaussians = loadGaussianCSV("../processed_scene.csv");
 
         for (size_t i = 0; i < 5 && i < gaussians.size(); ++i) {
@@ -114,12 +110,33 @@ int main() {
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             gaussianBuffer, gaussianBufferMemory);
 
+        // Copy data to input buffer
         void* data;
         vkMapMemory(vulkan.device, gaussianBufferMemory, 0, gaussianBufferSize, 0, &data);
         std::memcpy(data, gaussians.data(), gaussianBufferSize);
         vkUnmapMemory(vulkan.device, gaussianBufferMemory);
 
         std::cout << "Input buffers created and data uploaded." << std::endl;
+
+        // read back and verify uploaded data
+        void* verifyData;
+        vkMapMemory(vulkan.device, gaussianBufferMemory, 0, gaussianBufferSize, 0, &verifyData);
+        std::vector<Gaussian> uploadedData(gaussians.size());
+        std::memcpy(uploadedData.data(), verifyData, gaussianBufferSize);
+        vkUnmapMemory(vulkan.device, gaussianBufferMemory);
+
+        for (size_t i = 0; i < 5; ++i) {
+            const auto& g = uploadedData[i];
+            std::cout << "Uploaded Gaussian " << i << ": "
+                    << "x=" << g.x << ", y=" << g.y
+                    << ", r=" << g.r << ", g=" << g.g << ", b=" << g.b
+                    << ", ic11=" << g.ic11 << ", ic12=" << g.ic12
+                    << ", ic21=" << g.ic21 << ", ic22=" << g.ic22
+                    << ", opacity=" << g.opacity
+                    << ", min_x=" << g.min_x << ", max_x=" << g.max_x
+                    << ", min_y=" << g.min_y << ", max_y=" << g.max_y
+                    << std::endl;
+        }
 
         VkDeviceSize debugBufferSize = sizeof(Gaussian) * gaussians.size(); // Same size as input
 
@@ -289,17 +306,6 @@ int main() {
 
         vkQueueWaitIdle(vulkan.computeQueue);
         std::cout << "Compute shader executed successfully." << std::endl;
-
-        // void* mappedData;
-        // vkMapMemory(vulkan.device, outputBufferMemory, 0, bufferSize, 0, &mappedData);
-        // std::memcpy(outputData.data(), mappedData, bufferSize);
-        // vkUnmapMemory(vulkan.device, outputBufferMemory);
-
-        // std::cout << "Output data: ";
-        // for (float val : outputData) {
-        //     std::cout << val << " ";
-        // }
-        // std::cout << std::endl;
         
         void* debugData;
         vkMapMemory(vulkan.device, debugBufferMemory, 0, debugBufferSize, 0, &debugData);
