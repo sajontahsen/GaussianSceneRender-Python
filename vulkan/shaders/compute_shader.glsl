@@ -1,11 +1,11 @@
 #version 450
 
 struct Gaussian {
-    vec2 point;
-    vec3 color;
-    mat2 inverseCov;
-    float opacity;
-    float minX, maxX, minY, maxY;
+    float x, y;                 // Point position
+    float r, g, b;              // RGB colors
+    float ic11, ic12, ic21, ic22; // Inverse covariance matrix
+    float opacity;              // Opacity
+    float min_x, max_x, min_y, max_y; // Bounding ranges
 };
 
 layout(std430, binding = 0) buffer GaussianInput {
