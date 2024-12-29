@@ -94,8 +94,8 @@ int main() {
         VulkanSetup vulkan;
 
         // Data setup
-        const int width = 3326;
-        const int height = 5068;
+        const int width = 5068;
+        const int height = 3326;
 
         std::vector<Gaussian> gaussians = loadGaussianCSV("../processed_scene.csv");
 
