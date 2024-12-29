@@ -5,52 +5,153 @@
 #include <array>
 #include <vector>
 
+#include <fstream>
+#include <sstream>
+
+struct Gaussian {
+    float x, y;                 // Point position
+    float r, g, b;              // RGB colors
+    float ic11, ic12, ic21, ic22; // Inverse covariance matrix
+    float opacity;              // Opacity
+    float min_x, max_x, min_y, max_y; // Bounding ranges
+};
+
+std::vector<std::vector<float>> readCSV(const std::string& filename) {
+    std::vector<std::vector<float>> data;
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filename);
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::vector<float> row;
+        std::stringstream lineStream(line);
+        std::string cell;
+
+        while (std::getline(lineStream, cell, ',')) {
+            row.push_back(std::stof(cell)); // Convert each value to float
+        }
+
+        data.push_back(row);
+    }
+
+    file.close();
+    return data;
+}
+
+std::vector<Gaussian> loadGaussianCSV(const std::string& filename) {
+    std::vector<Gaussian> gaussians;
+    auto data = readCSV(filename); // Use the generic CSV reader
+
+    for (const auto& row : data) {
+        if (row.size() != 14) { // Ensure correct number of columns
+            std::cerr << "Invalid row size: " << row.size() << "\n";
+            continue;
+        }
+
+        // Map row to Gaussian structure
+        gaussians.push_back(Gaussian{
+            row[0], row[1],  // x, y
+            row[2], row[3], row[4], // r, g, b
+            row[5], row[6], row[7], row[8], // ic11, ic12, ic21, ic22
+            row[9],          // opacity
+            row[10], row[11], row[12], row[13] // min_x, max_x, min_y, max_y
+        });
+    }
+
+    return gaussians;
+}
+
 int main() {
     try {
         VulkanSetup vulkan;
 
         // Data setup
-        std::vector<float> inputData = {1.0f, 2.0f, 3.0f, 4.0f};
-        std::vector<float> outputData(inputData.size(), 0.0f);
-        VkDeviceSize bufferSize = sizeof(float) * inputData.size();
+        // std::vector<float> inputData = {1.0f, 2.0f, 3.0f, 4.0f};
+        // std::vector<float> outputData(inputData.size(), 0.0f);
+        // VkDeviceSize bufferSize = sizeof(float) * inputData.size();
 
-        // Create buffers
-        VkBuffer inputBuffer, outputBuffer;
-        VkDeviceMemory inputBufferMemory, outputBufferMemory;
+        // // Create buffers
+        // VkBuffer inputBuffer, outputBuffer;
+        // VkDeviceMemory inputBufferMemory, outputBufferMemory;
 
-        vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-                            inputBuffer, inputBufferMemory);
-        vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-                            outputBuffer, outputBufferMemory);
+        // vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+        //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+        //                     inputBuffer, inputBufferMemory);
+        // vulkan.createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+        //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+        //                     outputBuffer, outputBufferMemory);
 
-        // Copy data to input buffer
+        // // Copy data to input buffer
+        // void* data;
+        // vkMapMemory(vulkan.device, inputBufferMemory, 0, bufferSize, 0, &data);
+        // memcpy(data, inputData.data(), bufferSize);
+        // vkUnmapMemory(vulkan.device, inputBufferMemory);
+
+        std::vector<Gaussian> gaussians = loadGaussianCSV("../processed_scene.csv");
+
+        for (size_t i = 0; i < 5 && i < gaussians.size(); ++i) {
+            const auto& g = gaussians[i];
+            std::cout << "Gaussian " << i << ": "
+                    << "x=" << g.x << ", y=" << g.y
+                    << ", r=" << g.r << ", g=" << g.g << ", b=" << g.b
+                    << ", ic11=" << g.ic11 << ", ic12=" << g.ic12
+                    << ", ic21=" << g.ic21 << ", ic22=" << g.ic22
+                    << ", opacity=" << g.opacity
+                    << ", min_x=" << g.min_x << ", max_x=" << g.max_x
+                    << ", min_y=" << g.min_y << ", max_y=" << g.max_y
+                    << std::endl;
+        }
+
+        VkDeviceSize gaussianBufferSize = sizeof(Gaussian) * gaussians.size();
+
+        // Create a buffer for Gaussian data
+        VkBuffer gaussianBuffer;
+        VkDeviceMemory gaussianBufferMemory;
+        vulkan.createBuffer(gaussianBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            gaussianBuffer, gaussianBufferMemory);
+
         void* data;
-        vkMapMemory(vulkan.device, inputBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, inputData.data(), bufferSize);
-        vkUnmapMemory(vulkan.device, inputBufferMemory);
+        vkMapMemory(vulkan.device, gaussianBufferMemory, 0, gaussianBufferSize, 0, &data);
+        std::memcpy(data, gaussians.data(), gaussianBufferSize);
+        vkUnmapMemory(vulkan.device, gaussianBufferMemory);
 
-        std::cout << "Buffers created and data uploaded." << std::endl;
+        std::cout << "Input buffers created and data uploaded." << std::endl;
 
+        VkDeviceSize debugBufferSize = sizeof(Gaussian) * gaussians.size(); // Same size as input
+
+        VkBuffer debugBuffer;
+        VkDeviceMemory debugBufferMemory;
+        vulkan.createBuffer(debugBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            debugBuffer, debugBufferMemory);
+
+        std::cout << "Debug buffer created." << std::endl;
+
+        // load compute shader 
         std::vector<char> computeShaderCode = readFile("../shaders/compute_shader.spv");
         VkShaderModule computeShaderModule = vulkan.createShaderModule(computeShaderCode);
         std::cout << "Shader module created." << std::endl;
 
         // Descriptor set layout
-        VkDescriptorSetLayoutBinding bindings[2] = {};
-        bindings[0].binding = 0;
-        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[0].descriptorCount = 1;
-        bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        VkDescriptorSetLayoutBinding gaussianBinding = {};
+        gaussianBinding.binding = 0;
+        gaussianBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        gaussianBinding.descriptorCount = 1;
+        gaussianBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-        bindings[1] = bindings[0];
-        bindings[1].binding = 1;
+        VkDescriptorSetLayoutBinding debugBinding = gaussianBinding;
+        debugBinding.binding = 1;
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {gaussianBinding, debugBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo = {};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 2;
-        layoutInfo.pBindings = bindings;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
 
         VkDescriptorSetLayout descriptorSetLayout;
         vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, nullptr, &descriptorSetLayout);
@@ -111,33 +212,32 @@ int main() {
         std::cout << "Descriptor set allocated successfully." << std::endl;
 
         // Descriptor buffer bindings
-        VkDescriptorBufferInfo inputBufferInfo = {};
-        inputBufferInfo.buffer = inputBuffer;
-        inputBufferInfo.offset = 0;
-        inputBufferInfo.range = bufferSize;
+        VkDescriptorBufferInfo gaussianBufferInfo = {};
+        gaussianBufferInfo.buffer = gaussianBuffer;
+        gaussianBufferInfo.offset = 0;
+        gaussianBufferInfo.range = gaussianBufferSize;
 
-        VkDescriptorBufferInfo outputBufferInfo = {};
-        outputBufferInfo.buffer = outputBuffer;
-        outputBufferInfo.offset = 0;
-        outputBufferInfo.range = bufferSize;
+        VkDescriptorBufferInfo debugBufferInfo = {};
+        debugBufferInfo.buffer = debugBuffer;
+        debugBufferInfo.offset = 0;
+        debugBufferInfo.range = debugBufferSize;
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = descriptorSet;
         descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &inputBufferInfo;
+        descriptorWrites[0].pBufferInfo = &gaussianBufferInfo;
 
         descriptorWrites[1] = descriptorWrites[0];
         descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].pBufferInfo = &outputBufferInfo;
+        descriptorWrites[1].pBufferInfo = &debugBufferInfo;
 
         vkUpdateDescriptorSets(vulkan.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
-        std::cout << "Descriptor sets updated successfully." << std::endl;
+        std::cout << "Descriptor sets updated." << std::endl;
 
         if (vulkan.commandPool == VK_NULL_HANDLE) {
             throw std::runtime_error("Command pool is not initialized!");
@@ -171,8 +271,8 @@ int main() {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
-        // Dispatch compute shader
-        vkCmdDispatch(commandBuffer, (uint32_t)inputData.size() / 16 + 1, 1, 1);
+        // Dispatch the compute shader (1 thread per Gaussian)
+        vkCmdDispatch(commandBuffer, (uint32_t)gaussians.size(), 1, 1);
 
         vkEndCommandBuffer(commandBuffer);
 
@@ -190,16 +290,36 @@ int main() {
         vkQueueWaitIdle(vulkan.computeQueue);
         std::cout << "Compute shader executed successfully." << std::endl;
 
-        void* mappedData;
-        vkMapMemory(vulkan.device, outputBufferMemory, 0, bufferSize, 0, &mappedData);
-        std::memcpy(outputData.data(), mappedData, bufferSize);
-        vkUnmapMemory(vulkan.device, outputBufferMemory);
+        // void* mappedData;
+        // vkMapMemory(vulkan.device, outputBufferMemory, 0, bufferSize, 0, &mappedData);
+        // std::memcpy(outputData.data(), mappedData, bufferSize);
+        // vkUnmapMemory(vulkan.device, outputBufferMemory);
 
-        std::cout << "Output data: ";
-        for (float val : outputData) {
-            std::cout << val << " ";
+        // std::cout << "Output data: ";
+        // for (float val : outputData) {
+        //     std::cout << val << " ";
+        // }
+        // std::cout << std::endl;
+        
+        void* debugData;
+        vkMapMemory(vulkan.device, debugBufferMemory, 0, debugBufferSize, 0, &debugData);
+        std::vector<Gaussian> debugOutput(gaussians.size());
+        std::memcpy(debugOutput.data(), debugData, debugBufferSize);
+        vkUnmapMemory(vulkan.device, debugBufferMemory);
+
+        // Print the first few debug outputs
+        for (size_t i = 0; i < std::min(debugOutput.size(), size_t(5)); ++i) {
+            const auto& g = debugOutput[i];
+            std::cout << "Debug Gaussian " << i << ": "
+                    << "x=" << g.x << ", y=" << g.y
+                    << ", r=" << g.r << ", g=" << g.g << ", b=" << g.b
+                    << ", ic11=" << g.ic11 << ", ic12=" << g.ic12
+                    << ", ic21=" << g.ic21 << ", ic22=" << g.ic22
+                    << ", opacity=" << g.opacity
+                    << ", min_x=" << g.min_x << ", max_x=" << g.max_x
+                    << ", min_y=" << g.min_y << ", max_y=" << g.max_y
+                    << std::endl;
         }
-        std::cout << std::endl;
 
 
     } catch (const std::exception &e) {
