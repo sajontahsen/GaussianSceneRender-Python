@@ -9,12 +9,20 @@
 #include <sstream>
 #include <cstddef> 
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 struct Gaussian {
     float x, y;                 // Point position
     float r, g, b;              // RGB colors
     float ic11, ic12, ic21, ic22; // Inverse covariance matrix
     float opacity;              // Opacity
     float min_x, max_x, min_y, max_y; // Bounding ranges
+};
+
+struct PushConstants {
+    int width;
+    int height;
 };
 
 std::vector<std::vector<float>> readCSV(const std::string& filename) {
@@ -86,6 +94,9 @@ int main() {
         VulkanSetup vulkan;
 
         // Data setup
+        const int width = 3326;
+        const int height = 5068;
+
         std::vector<Gaussian> gaussians = loadGaussianCSV("../processed_scene.csv");
 
         for (size_t i = 0; i < 5 && i < gaussians.size(); ++i) {
@@ -138,15 +149,15 @@ int main() {
                     << std::endl;
         }
 
-        VkDeviceSize debugBufferSize = sizeof(Gaussian) * gaussians.size(); // Same size as input
-
-        VkBuffer debugBuffer;
-        VkDeviceMemory debugBufferMemory;
-        vulkan.createBuffer(debugBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        // Output image buffer
+        VkDeviceSize imageBufferSize = width * height * sizeof(float) * 4; // RGBA
+        VkBuffer imageBuffer;
+        VkDeviceMemory imageBufferMemory;
+        vulkan.createBuffer(imageBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            debugBuffer, debugBufferMemory);
+            imageBuffer, imageBufferMemory);
 
-        std::cout << "Debug buffer created." << std::endl;
+        std::cout << "output image buffer created successfully." << std::endl;
 
         // load compute shader 
         std::vector<char> computeShaderCode = readFile("../shaders/compute_shader.spv");
@@ -160,10 +171,13 @@ int main() {
         gaussianBinding.descriptorCount = 1;
         gaussianBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-        VkDescriptorSetLayoutBinding debugBinding = gaussianBinding;
-        debugBinding.binding = 1;
+        VkDescriptorSetLayoutBinding imageBinding = {};
+        imageBinding.binding = 1;
+        imageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        imageBinding.descriptorCount = 1;
+        imageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {gaussianBinding, debugBinding};
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {gaussianBinding, imageBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo = {};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -171,32 +185,9 @@ int main() {
         layoutInfo.pBindings = bindings.data();
 
         VkDescriptorSetLayout descriptorSetLayout;
-        vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, nullptr, &descriptorSetLayout);
-
-        // Pipeline layout
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-
-        VkPipelineLayout pipelineLayout;
-        vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
-
-        // Compute pipeline creation
-        VkComputePipelineCreateInfo pipelineInfo = {};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-        pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        pipelineInfo.stage.module = computeShaderModule;
-        pipelineInfo.stage.pName = "main";
-        pipelineInfo.layout = pipelineLayout;
-
-        VkPipeline computePipeline;
-        if (vkCreateComputePipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create compute pipeline!");
+        if (vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
         }
-
-        std::cout << "Compute pipeline created successfully." << std::endl;
 
         // Descriptor pool
         VkDescriptorPoolSize poolSize = {};
@@ -234,10 +225,10 @@ int main() {
         gaussianBufferInfo.offset = 0;
         gaussianBufferInfo.range = gaussianBufferSize;
 
-        VkDescriptorBufferInfo debugBufferInfo = {};
-        debugBufferInfo.buffer = debugBuffer;
-        debugBufferInfo.offset = 0;
-        debugBufferInfo.range = debugBufferSize;
+        VkDescriptorBufferInfo imageBufferInfo = {};
+        imageBufferInfo.buffer = imageBuffer;
+        imageBufferInfo.offset = 0;
+        imageBufferInfo.range = imageBufferSize;
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
@@ -248,13 +239,50 @@ int main() {
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &gaussianBufferInfo;
 
-        descriptorWrites[1] = descriptorWrites[0];
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSet;
         descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].pBufferInfo = &debugBufferInfo;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &imageBufferInfo;
 
         vkUpdateDescriptorSets(vulkan.device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
         std::cout << "Descriptor sets updated." << std::endl;
+
+        // Pipeline layout
+        VkPushConstantRange pushConstantRange = {};
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(PushConstants);
+
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+        VkPipelineLayout pipelineLayout;
+        if (vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
+        }
+
+        // Compute pipeline creation
+        VkComputePipelineCreateInfo pipelineInfo = {};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        pipelineInfo.stage.module = computeShaderModule;
+        pipelineInfo.stage.pName = "main";
+        pipelineInfo.layout = pipelineLayout;
+
+        VkPipeline computePipeline;
+        if (vkCreateComputePipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create compute pipeline!");
+        }
+
+        std::cout << "Compute pipeline created successfully." << std::endl;
 
         if (vulkan.commandPool == VK_NULL_HANDLE) {
             throw std::runtime_error("Command pool is not initialized!");
@@ -288,8 +316,11 @@ int main() {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
-        // Dispatch the compute shader (1 thread per Gaussian)
-        vkCmdDispatch(commandBuffer, (uint32_t)gaussians.size(), 1, 1);
+        // Dispatch the compute shader 
+        PushConstants pc = {width, height};
+        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+
+        vkCmdDispatch(commandBuffer, (width + 15) / 16, (height + 15) / 16, 1);
 
         vkEndCommandBuffer(commandBuffer);
 
@@ -307,26 +338,20 @@ int main() {
         vkQueueWaitIdle(vulkan.computeQueue);
         std::cout << "Compute shader executed successfully." << std::endl;
         
-        void* debugData;
-        vkMapMemory(vulkan.device, debugBufferMemory, 0, debugBufferSize, 0, &debugData);
-        std::vector<Gaussian> debugOutput(gaussians.size());
-        std::memcpy(debugOutput.data(), debugData, debugBufferSize);
-        vkUnmapMemory(vulkan.device, debugBufferMemory);
+        void* mappedMemory;
+        vkMapMemory(vulkan.device, imageBufferMemory, 0, imageBufferSize, 0, &mappedMemory);
+        float* imageData = static_cast<float*>(mappedMemory);
 
-        // Print the first few debug outputs
-        for (size_t i = 0; i < std::min(debugOutput.size(), size_t(5)); ++i) {
-            const auto& g = debugOutput[i];
-            std::cout << "Debug Gaussian " << i << ": "
-                    << "x=" << g.x << ", y=" << g.y
-                    << ", r=" << g.r << ", g=" << g.g << ", b=" << g.b
-                    << ", ic11=" << g.ic11 << ", ic12=" << g.ic12
-                    << ", ic21=" << g.ic21 << ", ic22=" << g.ic22
-                    << ", opacity=" << g.opacity
-                    << ", min_x=" << g.min_x << ", max_x=" << g.max_x
-                    << ", min_y=" << g.min_y << ", max_y=" << g.max_y
-                    << std::endl;
+        std::vector<uint8_t> pixelData(width * height * 4); // RGBA output
+        for (size_t i = 0; i < width * height; ++i) {
+            pixelData[i * 4 + 0] = static_cast<uint8_t>(imageData[i * 4 + 0] * 255.0f); // R
+            pixelData[i * 4 + 1] = static_cast<uint8_t>(imageData[i * 4 + 1] * 255.0f); // G
+            pixelData[i * 4 + 2] = static_cast<uint8_t>(imageData[i * 4 + 2] * 255.0f); // B
+            pixelData[i * 4 + 3] = 255; // A
         }
 
+        stbi_write_png("output.png", width, height, 4, pixelData.data(), width * 4);
+        vkUnmapMemory(vulkan.device, imageBufferMemory);
 
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
