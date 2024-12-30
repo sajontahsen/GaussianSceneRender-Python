@@ -17,7 +17,6 @@ VulkanSetup::~VulkanSetup() {
     vkDestroyInstance(instance, nullptr);
 }
 
-
 void VulkanSetup::createInstance() {
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -106,6 +105,18 @@ uint32_t VulkanSetup::findQueueFamily(VkQueueFlagBits queueFlags) {
     throw std::runtime_error("Failed to find a suitable queue family!");
 }
 
+uint32_t VulkanSetup::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("Failed to find suitable memory type!");
+}
 
 void VulkanSetup::createCommandPool() {
     // Query the queue family index for compute
@@ -120,8 +131,6 @@ void VulkanSetup::createCommandPool() {
         throw std::runtime_error("Failed to create command pool!");
     }
 }
-
-
 
 void VulkanSetup::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                                VkBuffer &buffer, VkDeviceMemory &bufferMemory) {
@@ -148,19 +157,6 @@ void VulkanSetup::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
     }
 
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
-}
-
-uint32_t VulkanSetup::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-            return i;
-        }
-    }
-
-    throw std::runtime_error("Failed to find suitable memory type!");
 }
 
 VkShaderModule VulkanSetup::createShaderModule(const std::vector<char>& code) {
