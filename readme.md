@@ -1,8 +1,8 @@
-> A simplified Python implementation of **3D Gaussian Splatting (3DGS)** scene rendering. This initializes the Gaussians from COLMAP input and renders a scene based on the original 3DGS implementation. The idea is to learn the core concepts of Gaussian Splatting by building up a barebones version from scratch. Lots more to be added!
+> A barebones implementation of **3D Gaussian Splatting (3DGS)** scene rendering. This initializes the Gaussians from COLMAP input and renders a scene based on the original 3DGS implementation. The idea is to learn the core concepts of Gaussian Splatting by building up a barebones version from scratch. Lots more to be added!
 
 ### **Updates**
 - Vulkan Compute Pipeline Implementation (WIP) [[current implementation status]](./vulkan/)
-- 3 Dec, 2024: Added CUDA Implementation. [code](./cuda/) and [example output notebook](./demo-notebook.ipynb)
+- Added CUDA Implementation. [code](./cuda/) and [example output notebook](./demo-notebook.ipynb)
 
 ---
 
@@ -35,7 +35,7 @@ python main.py --colmap_path "treehill/sparse/0" --image_id 100
 
 This will render the specified image and save the output to `./output/rendered_image_<image_id>.png`
 
-There is a [demo notebook](./demo-notebook.ipynb) with example outputs. I've kept it because the current implementation is VERY slow. Furthermore, to avoid the costly nearest neighbor search, for now all scale variables are initialized to a small constant.
+There is a [demo notebook](./demo-notebook.ipynb) with example outputs. I've kept it because the python implementation is VERY slow. Furthermore, to avoid the costly nearest neighbor search, for now all scale variables are initialized to a small constant.
 
 ---
 
