@@ -1,8 +1,8 @@
 > A simplified Python implementation of **3D Gaussian Splatting (3DGS)** scene rendering. This initializes the Gaussians from COLMAP input and renders a scene based on the original 3DGS implementation. The idea is to learn the core concepts of Gaussian Splatting by building up a barebones version from scratch. Lots more to be added!
 
 ### **Updates**
-- Vulkan Compute Pipeline Implementation (WIP) 
-- 3 Dec, 2024: Added CUDA Implementation 
+- Vulkan Compute Pipeline Implementation (WIP) [[current implementation status]](./vulkan/)
+- 3 Dec, 2024: Added CUDA Implementation. [code](./cuda/) and [example output notebook](./demo-notebook.ipynb)
 
 ---
 
