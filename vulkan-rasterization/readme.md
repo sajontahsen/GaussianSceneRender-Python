@@ -19,7 +19,7 @@ This Vulkan pipeline is designed to rasterize 3D Gaussian points using vertex an
 
 ## General Overview of the Pipeline
 
-### **1. (External) Frustum Culling & Depth Sorting** 
+### **1. (External) Frustum Culling & Depth Sorting** - [Code](./export-data-vulkan.ipynb)
 
 1. Compute the visibility mask & keep only the culled Gaussians
 2. Sort Gaussians by Depth (Back-to-Front Order)
@@ -30,7 +30,7 @@ This Vulkan pipeline is designed to rasterize 3D Gaussian points using vertex an
 #### **Gaussian Data Representation** 
 
 The Gaussians are stored as structured buffer objects (SSBOs). Each Gaussian structure contains:
-- **3D position** (`vec3`) → World-space location of the Gaussian center.
+- **3D position** (`vec3`) → World-space location of the Gaussian mean.
 - **Color** (`vec3`) → RGB color for rendering.
 - **3×3 covariance matrix** (`mat3`) → Defines the Gaussian's spread.
 - **Opacity** (`float`) → Used for alpha blending.
