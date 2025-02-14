@@ -121,8 +121,10 @@ make
 
 
 ## To-Dos
-- expand current point-based approach to Paramerization to Bary Centric Games
-- Right now, Gaussians are rendered as simple points. Need to work on Gaussian-based shape approximation using covariance matrices to properly render anisotropic ellipses.
+
+
+- Expand the point-based topology. My plan is to estimate a triangle face for each Gaussian component and parameterize the vertices using the barycentric coordinates as outlined in [GaMeS: Mesh-Based Adapting and Modification of Gaussian Splatting](https://arxiv.org/abs/2402.01459). 
+- Right now, Gaussians are rendered as simple points. Need to work on Gaussian-based shape approximation using the covariance matrices to properly render anisotropic ellipses.
 - Handle the sorting and culling directly in Vulkan
 
 
