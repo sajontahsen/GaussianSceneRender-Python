@@ -4,6 +4,8 @@
 
 I have implemented a compute pipeline using Vulkan for 3D Gaussian Splatting (3DGS), building upon my previous work in writing a barebones 3DGS rendering pipeline from the ground up.  The CUDA-based computations [(refer to code)](../cuda/render.cu) have been ported to Vulkan, while the COLMAP data loading and scene preprocessing tasks [(refer to code)](../gaussian_splatting/gaussian_scene.py) remain on the Python side.  The work completed so far includes: 1) setting up the Vulkan environment, 2) loading Gaussian data to input buffers, 3) implementing a compute shader to calculate Gaussian contributions, perform alpha blending, and write to an output buffer, and 4) generating the final output image. This document outlines my high-level understanding of the Vulkan workflow, as well as a technical overview of my implementation. For additional context or rationale behind the Gaussian data and 3DGS pipeline, please refer to the Python and CUDA components in the repository.
 
+Note: Please see [here](../vulkan-rasterization/) for my vertex and fragment-shader based implementation that follows the traditional rasterization pipeline. 
+
 <!-- code_chunk_output -->
 
 ## Table of Contents 
