@@ -72,7 +72,7 @@ The camera data remains onstant for a given frame. A Uniform Buffer Object (UBO)
 
 *Fig 1. Rendering Gaussians using the current rasterization pipeline. Background color set to {{1.0f, 1.0f, 1.0f, 1.0f}} for demonstration purposes.*
 
-![reference output](../vulkan/blobs/reference.png)
+![reference output](../vulkan-compute/blobs/reference.png)
 
 *Fig. 2. Reference output from CUDA implementation [notebook](../demo-notebook.ipynb).*
 
