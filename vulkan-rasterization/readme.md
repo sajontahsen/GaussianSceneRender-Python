@@ -1,6 +1,6 @@
 # Vulkan-Based 3D Gaussian Splatting Pipeline
 
-This Vulkan pipeline is designed to rasterize 3D Gaussian points using vertex and fragment shaders, building upon my previous work in writing a barebones 3DGS rendering pipeline from the ground up ([CUDA with Python Bindings](../gaussian_splatting/gaussian_scene.py), [Vulkan Compute Shaders](../vulkan-compute/)). For now, the frustum culling and sorting is done externally.
+This Vulkan pipeline is designed to rasterize 3D Gaussian points using vertex and fragment shaders, building upon my previous work in writing a barebones 3DGS rendering pipeline from the ground up ([CUDA with Python Bindings](../gaussian_splatting/gaussian_scene.py), [Vulkan Compute Shaders](../vulkan/)). For now, the frustum culling and sorting is done externally.
 
 ## Table of Contents
 <!-- code_chunk_output -->
